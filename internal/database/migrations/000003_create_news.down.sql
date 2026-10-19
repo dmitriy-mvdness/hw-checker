@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS idx_news_created_at;
+DROP TABLE IF EXISTS news;
+DROP TABLE IF EXISTS seen_themes;
+DROP TABLE IF EXISTS meta;

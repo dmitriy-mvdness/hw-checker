@@ -1,0 +1,32 @@
+# --- Секреты и данные ---
+.env
+*.db
+/data/
+/scripts/
+/bin/
+
+# --- Логи ---
+*.log
+*.log.gz
+
+# --- ОС ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Редакторы ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Go ---
+*.exe
+*.test
+*.out
+/vendor/
+
+# --- Временное ---
+*.tmp
+*.zip
