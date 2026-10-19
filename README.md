@@ -5,6 +5,7 @@ Telegram-бот для сдачи домашних заданий студент
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 [![Telegram Bot API](https://img.shields.io/badge/go--telegram%2Fbot-v1.27-2CA5E0?logo=telegram)](https://github.com/go-telegram/bot)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/dmitriy-mvdness/hw-checker/blob/main/LICENSE)
 
 ---
 
@@ -443,3 +444,8 @@ TTL **дисковый**: считается по дате папки и mtime �
 - **Файлы** — белый список расширений, лимит размера, atomic write (temp + rename), откат файла при ошибке записи в БД.
 - **Snapshot** открыт read-only — бот не может изменить выгрузку 1С.
 - **Graceful shutdown** — начатые обработчики дорабатывают, данные не теряются при штатной остановке.
+
+---
+
+## Лицензия
+Этот проект распространяется под лицензией MIT. Подробности в файле [LICENSE](LICENSE).
