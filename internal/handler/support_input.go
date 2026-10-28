@@ -109,6 +109,15 @@ func (h *Handler) handleSupportFile(
 		return
 	}
 
+	// Telegram иногда занижает FileSize в метаданных (или отдаёт 0).
+	// Проверяем фактический размер скачанных данных: иначе в поддержку
+	// уйдёт файл больше лимита.
+	if int64(len(data)) > h.svc.MaxFileSize() {
+		h.askSupportAgain(ctx, b, userID, chatID, sess,
+			fmt.Sprintf("❌ <b>Файл слишком большой</b>\n\nМаксимум — %d МБ.", h.svc.MaxFileSizeMB()))
+		return
+	}
+
 	tgName := strings.TrimSpace(msg.From.FirstName + " " + msg.From.LastName)
 	username := msg.From.Username
 	caption := strings.TrimSpace(msg.Caption)
@@ -212,6 +221,14 @@ func (h *Handler) handleSupportPhoto(
 		)
 		h.askSupportAgain(ctx, b, userID, chatID, sess,
 			"😕 <b>Не удалось скачать фото</b>\n\nПопробуй ещё раз чуть позже.")
+		return
+	}
+
+	// Telegram иногда занижает FileSize в метаданных. Проверяем
+	// фактический размер скачанных данных.
+	if int64(len(data)) > h.svc.MaxFileSize() {
+		h.askSupportAgain(ctx, b, userID, chatID, sess,
+			fmt.Sprintf("❌ <b>Фото слишком большое</b>\n\nМаксимум — %d МБ.", h.svc.MaxFileSizeMB()))
 		return
 	}
 

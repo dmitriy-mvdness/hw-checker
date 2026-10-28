@@ -81,11 +81,17 @@ func (h *Handler) cbUserRequestCode(
 	parseMode := models.ParseModeHTML
 
 	// Если уже вошёл — код не нужен.
-	if _, err := h.svc.CurrentStudent(ctx, userID); err == nil {
-		text := "ℹ️ <b>Ты уже авторизован</b>\n\nАккаунт активен."
+	student, err := h.svc.CurrentStudent(ctx, userID)
+	switch {
+	case err == nil:
+		text := fmt.Sprintf("ℹ️  <b>Ты уже авторизован</b>\n\n"+
+			"Сейчас активен аккаунт: <b>%s</b>\n\n"+
+			"Зочем тебе тогда код? 😀",
+			html.EscapeString(student.Name))
 		return h.editMessage(ctx, b, chatID, messageID, text, keyboard.MenuButton(), parseMode)
-	} else if !errors.Is(err, domain.ErrNotFound) {
-		return fmt.Errorf("check student: %w", err)
+
+	case !errors.Is(err, domain.ErrNotFound):
+		return fmt.Errorf("current student: %w", err)
 	}
 
 	// Тянем имя/username из Telegram.

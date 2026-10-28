@@ -67,6 +67,34 @@ func (h *Handler) handleDocument(
 		return
 	}
 
+	// Проверяем тему ДО скачивания: если её убрали из выгрузки или
+	// доступ потерян, покажем экран недоступной темы и не будем
+	// тратить трафик на 20 МБ. Без этой проверки ErrNotFound после
+	// SubmitHomework не отличить от не "залогинен": студент увидит
+	// "Сначала войди в аккаунт", хотя он уже авторизован.
+	theme, terr := h.svc.Theme(ctx, userID, sess.ThemeCode)
+	if errors.Is(terr, domain.ErrNotFound) {
+		h.states.Clear(userID)
+		text := "⚠️ <b>Тема недоступна</b>\n\n" +
+			"Возможно, её убрали из выгрузки или у неё нет ДЗ."
+		markup := keyboard.AddBackButton(keyboard.Empty(), keyboard.CbHomework)
+		if eerr := h.editMessage(ctx, b, chatID, sess.MessageID, text, markup, models.ParseModeHTML); eerr != nil {
+			h.log.Warn("не удалось показать экран недоступной темы",
+				zap.Int64("user_id", userID),
+				zap.String("theme", sess.ThemeCode),
+				zap.Error(eerr),
+			)
+		}
+		return
+	}
+	if terr != nil {
+		h.log.Error("не удалось получить тему для экрана загрузки",
+			zap.Int64("user_id", userID),
+			zap.String("theme", sess.ThemeCode),
+			zap.Error(terr),
+		)
+	}
+
 	// Файл прошёл проверки — показываем прогресс на том же сообщении,
 	// что и экран темы. Пока downloadFile тянет 20 МБ из Telegram
 	// (5–30 секунд), студент видит, что бот реагирует, и не отправляет
@@ -80,17 +108,6 @@ func (h *Handler) handleDocument(
 	// видит те же предмет и тему, плавный переход без скачков.
 	// Если тема не тянется (удалили из выгрузки) — показываем прогресс
 	// без украшений, следом ошибка из SubmitHomework всё равно сработает.
-	theme, terr := h.svc.Theme(ctx, userID, sess.ThemeCode)
-	if terr != nil && !errors.Is(terr, domain.ErrNotFound) {
-		h.log.Error("не удалось получить тему для экрана загрузки",
-			zap.Int64("user_id", userID),
-			zap.String("theme", sess.ThemeCode),
-			zap.Error(terr),
-		)
-	}
-
-	// Ошибка editMessage — не критично: продолжим скачивание, прогресс
-	// просто не покажется. Логируем Debug — сообщение мог удалить сам юзер.
 	var themePtr *domain.Theme
 	if terr == nil {
 		themePtr = &theme
@@ -141,9 +158,26 @@ func (h *Handler) handleDocument(
 		}
 
 	case errors.Is(err, domain.ErrNotFound):
-		if eerr := h.editMessage(ctx, b, chatID, sess.MessageID, notLoggedText, keyboard.AuthKeyboard(), models.ParseModeHTML); eerr != nil {
-			h.log.Warn("не удалось показать экран входа",
+		// ErrNotFound значит либо «аккаунт/студент пропал», либо
+		// «тема пропала» (если проверка до скачивания не сработала
+		// из-за гонки с выгрузкой 1С). Различаем через CurrentStudent:
+		// если аккаунт на месте — это не «не залогинен», а «нет темы».
+		if _, serr := h.svc.CurrentStudent(ctx, userID); errors.Is(serr, domain.ErrNotFound) {
+			if eerr := h.editMessage(ctx, b, chatID, sess.MessageID, notLoggedText, keyboard.AuthKeyboard(), models.ParseModeHTML); eerr != nil {
+				h.log.Warn("не удалось показать экран входа",
+					zap.Int64("user_id", userID),
+					zap.Error(eerr),
+				)
+			}
+			return
+		}
+		text := "⚠️ <b>Тема недоступна</b>\n\n" +
+			"Возможно, её убрали из выгрузки или у неё нет ДЗ."
+		markup := keyboard.AddBackButton(keyboard.Empty(), keyboard.CbHomework)
+		if eerr := h.editMessage(ctx, b, chatID, sess.MessageID, text, markup, models.ParseModeHTML); eerr != nil {
+			h.log.Warn("не удалось показать экран недоступной темы",
 				zap.Int64("user_id", userID),
+				zap.String("theme", sess.ThemeCode),
 				zap.Error(eerr),
 			)
 		}
@@ -308,8 +342,11 @@ func (h *Handler) showThemeWithWarning(
 
 	// Лимит мог закончиться между прошлым экраном и этим апдейтом —
 	// например, пока юзер отправлял файлы. Тогда в режим ожидания
-	// не возвращаемся, экран уже объяснил ситуацию.
+	// не возвращаемся, экран уже объяснил ситуацию. Состояние чистим:
+	// если юзер висел в StateWaitingFile по другой теме, он не должен
+	// залипнуть в старом режиме.
 	if count >= h.svc.MaxSubmissions() {
+		h.states.Clear(userID)
 		if eerr := h.editMessage(ctx, b, chatID, sess.MessageID, text, markup, models.ParseModeHTML); eerr != nil {
 			h.log.Warn("не удалось показать экран лимита",
 				zap.Int64("user_id", userID),
@@ -344,7 +381,7 @@ func (h *Handler) showSubmitSuccess(
 	sess session.Session,
 	sub domain.Submission,
 ) {
-	tail := "Если нужно пересдать — нажми «Сдать ещё»."
+	tail := "Есть что сдать ещё? Жми «Сдать ещё» 👇"
 
 	kb := keyboard.Empty()
 

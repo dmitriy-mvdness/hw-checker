@@ -74,7 +74,7 @@ func Load() *Config {
 		Database: DatabaseConfig{
 			SnapshotPath:        getEnv("SNAPSHOT_DB_PATH", "data/snapshot.db"),
 			StoragePath:         getEnv("STORAGE_DB_PATH", "data/storage.db"),
-			SnapshotMaxAgeHours: getEnvIntAllowZero("SNAPSHOT_MAX_AGE_HOURS", 48),
+			SnapshotMaxAgeHours: getEnvIntAllowZero("SNAPSHOT_MAX_AGE_HOURS", 72),
 		},
 
 		Files: FilesConfig{

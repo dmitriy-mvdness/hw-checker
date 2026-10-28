@@ -96,6 +96,7 @@ func (h *Handler) handleCodeInput(
 	case errors.Is(err, domain.ErrAccountExists):
 		h.states.Clear(userID)
 		text = "✅ <b>Ты уже вошёл</b>"
+		markup = keyboard.MenuButton()
 
 	default:
 		h.log.Error("ошибка входа",
