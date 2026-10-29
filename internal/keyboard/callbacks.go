@@ -25,6 +25,8 @@ const (
 	CbMySubmissions = "my_submissions"
 	CbNews          = "news"
 	CbCancelResume  = "cancel_resume"
+
+	CbIgnore = "ignore" // заглушка для кнопок, которые не должны ничего делать
 )
 
 // Префиксные callback-данные: <prefix><arg>. Handler.dispatch разбирает
@@ -41,8 +43,9 @@ const (
 const BackCallbackPrefix = "back:"
 
 // CallbackSubject — callback-данные кнопки предмета.
-func CallbackSubject(code int64) string {
-	return PrefixSubject + strconv.FormatInt(code, 10)
+// Теперь включает страницу: "subject:<code>:<page>".
+func CallbackSubject(code int64, page int) string {
+	return PrefixSubject + strconv.FormatInt(code, 10) + ":" + strconv.Itoa(page)
 }
 
 // CallbackTheme — callback-данные кнопки темы.

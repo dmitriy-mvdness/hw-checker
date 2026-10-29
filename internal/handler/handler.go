@@ -12,6 +12,7 @@ import (
 	"github.com/dmitriy-mvdness/hw-checker/internal/keyboard"
 	"github.com/dmitriy-mvdness/hw-checker/internal/service"
 	"github.com/dmitriy-mvdness/hw-checker/internal/session"
+	"github.com/go-telegram/bot"
 	"go.uber.org/zap"
 )
 
@@ -32,12 +33,9 @@ type Handler struct {
 	callbackPrefixRoutes []prefixRoute
 
 	// wg считает обработчики, которые сейчас в работе — для graceful shutdown.
-	// В wg попадают только message- и callback-обработчики (через drainMiddleware);
-	// safeGo-горутины не в счёт, они данные не пишут.
 	wg sync.WaitGroup
 
-	// activeHandlers дублирует счётчик wg для логов: WaitGroup не отдаёт
-	// свой счётчик наружу, а нам надо показывать «жду N обработчиков».
+	// activeHandlers дублирует счётчик wg для логов.
 	activeHandlers atomic.Int64
 }
 
@@ -65,6 +63,11 @@ func New(svc *service.Service, states *session.States, log *zap.Logger, httpClie
 		keyboard.CbMySubmissions: h.cbMySubmissions,
 		keyboard.CbNews:          h.cbNews,
 		keyboard.CbCancelResume:  h.cbCancelResume,
+
+		// Заглушка для кнопок-индикаторов
+		keyboard.CbIgnore: func(ctx context.Context, b *bot.Bot, userID, chatID int64, messageID int) error {
+			return nil
+		},
 	}
 
 	h.callbackPrefixRoutes = []prefixRoute{
@@ -78,10 +81,6 @@ func New(svc *service.Service, states *session.States, log *zap.Logger, httpClie
 }
 
 // Shutdown ждёт in-flight обработчиков или ctx.Done.
-// Возвращает true, если все успели.
-//
-// Пишем в лог «ожидаю N», чтобы при Ctrl+C было видно, что бот
-// не завис, а дожидается конкретной работы (например, скачивания файла).
 func (h *Handler) Shutdown(ctx context.Context) bool {
 	active := h.activeHandlers.Load()
 	if active == 0 {

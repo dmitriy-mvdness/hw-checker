@@ -22,7 +22,6 @@ type callbackHandlerFunc func(ctx context.Context, b *bot.Bot, userID, chatID in
 type callbackPrefixHandlerFunc func(ctx context.Context, b *bot.Bot, userID, chatID int64, messageID int, arg string) error
 
 // protectedRoutes — экраны, доступные только после входа. Ключи — точные.
-// Префиксные маршруты всегда считаются защищёнными (см. isProtected).
 var protectedRoutes = map[string]bool{
 	keyboard.CbMainMenu:      true,
 	keyboard.CbProfile:       true,
@@ -38,7 +37,6 @@ var protectedRoutes = map[string]bool{
 }
 
 // handleCallback — точка входа для всех callback-нажатий.
-// Поддерживает переходы "назад" через префикс "back:".
 func (h *Handler) handleCallback(
 	ctx context.Context,
 	b *bot.Bot,
@@ -48,16 +46,14 @@ func (h *Handler) handleCallback(
 		return
 	}
 
+	data := update.CallbackQuery.Data
+
 	// 1. СРАЗУ отвечаем на callback, чтобы уложиться в таймаут Telegram.
-	//    Делаем это асинхронно, чтобы не блокировать основной поток.
-	//    safeGo ловит панику: recoverMiddleware до этой горутины не добирается.
 	safeGo(h.log, func() {
 		params := &bot.AnswerCallbackQueryParams{CallbackQueryID: update.CallbackQuery.ID}
-		// Если пользователь в режиме ввода кода, показываем алерт.
-		// Но проверять это состояние нужно здесь, до отправки.
 		if h.states.IsWaitingCode(update.CallbackQuery.From.ID) &&
-			!strings.HasPrefix(update.CallbackQuery.Data, keyboard.BackCallbackPrefix) &&
-			update.CallbackQuery.Data != keyboard.CbRequestCode {
+			!strings.HasPrefix(data, keyboard.BackCallbackPrefix) &&
+			data != keyboard.CbRequestCode {
 			params.Text = "Сначала введи код или нажми «Назад»"
 			params.ShowAlert = true
 		}
@@ -69,17 +65,12 @@ func (h *Handler) handleCallback(
 		}
 	})
 
-	// 2. Сообщение могло стать недоступным (старое, удалённое, из чужого
-	//    контекста). Telegram присылает CallbackQuery.Message как
-	//    MaybeInaccessibleMessage — структуру с двумя указателями.
-	//    Если вложенный Message == nil, значит сообщение недоступно
-	//    (это InaccessibleMessage), редактировать нечего — выходим тихо.
+	// 2. Сообщение могло стать недоступным.
 	if update.CallbackQuery.Message.Message == nil {
 		return
 	}
 
-	// 3. Теперь выполняем остальную логику (проверки, dispatch).
-	data := update.CallbackQuery.Data
+	// 3. Теперь выполняем остальную логику.
 	userID := update.CallbackQuery.From.ID
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	messageID := update.CallbackQuery.Message.Message.ID
@@ -98,6 +89,11 @@ func (h *Handler) handleCallback(
 	}
 
 	route := strings.TrimPrefix(data, keyboard.BackCallbackPrefix)
+
+	// Ранний выход для кнопок-заглушек, чтобы не проверять авторизацию
+	if route == keyboard.CbIgnore {
+		return
+	}
 
 	if h.isProtected(route) {
 		_, err := h.svc.CurrentStudent(ctx, userID)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"strconv"
 	"strings"
 
 	"github.com/dmitriy-mvdness/hw-checker/internal/domain"
@@ -42,7 +43,7 @@ func (h *Handler) cbHomework(
 	return h.editMessage(ctx, b, chatID, messageID, text, keyboard.SubjectsKeyboard(subjects), models.ParseModeHTML)
 }
 
-// cbSubject показывает темы предмета. arg — код предмета.
+// cbSubject показывает темы предмета. arg — код предмета и страница ("5:0").
 func (h *Handler) cbSubject(
 	ctx context.Context,
 	b *bot.Bot,
@@ -50,9 +51,18 @@ func (h *Handler) cbSubject(
 	messageID int,
 	arg string,
 ) error {
-	var subjectCode int64
-	if _, err := fmt.Sscanf(arg, "%d", &subjectCode); err != nil {
-		return fmt.Errorf("parse subject code %q: %w", arg, err)
+	parts := strings.Split(arg, ":")
+
+	subjectCode, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse subject code %q: %w", parts[0], err)
+	}
+
+	page := 0
+	if len(parts) > 1 {
+		if p, err := strconv.Atoi(parts[1]); err == nil {
+			page = p
+		}
 	}
 
 	themes, err := h.svc.Themes(ctx, userID, subjectCode)
@@ -78,7 +88,7 @@ func (h *Handler) cbSubject(
 		)
 	}
 
-	return h.editMessage(ctx, b, chatID, messageID, text, keyboard.ThemesKeyboard(themes), models.ParseModeHTML)
+	return h.editMessage(ctx, b, chatID, messageID, text, keyboard.ThemesKeyboard(themes, subjectCode, page), models.ParseModeHTML)
 }
 
 // cbTheme показывает экран темы и переводит пользователя в режим
@@ -107,7 +117,9 @@ func (h *Handler) cbTheme(
 	}
 
 	text := h.themeScreenText(theme, count, h.svc.MaxSubmissions(), "")
-	markup := keyboard.AddBackButton(keyboard.Empty(), fmt.Sprintf("subject:%d", theme.SubjectCode))
+
+	// Возвращаемся на 0-ю страницу предмета
+	markup := keyboard.AddBackButton(keyboard.Empty(), keyboard.CallbackSubject(theme.SubjectCode, 0))
 
 	if err := h.editMessage(ctx, b, chatID, messageID, text, markup, models.ParseModeHTML); err != nil {
 		return err
@@ -171,7 +183,7 @@ func (h *Handler) themeScreenText(theme domain.Theme, count, max int, warning st
 			"• Один файл до %d МБ\n"+
 			"• Форматы: %s\n\n",
 		html.EscapeString(utils.CleanSubjectName(theme.SubjectName)),
-		html.EscapeString(utils.CleanThemeName(theme.Name)),
+		html.EscapeString(utils.CleanThemeNameKeepNumber(theme.Name)),
 		count, max,
 		h.svc.MaxFileSizeMB(),
 		h.svc.AllowedExtsDisplay(),

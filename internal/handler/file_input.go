@@ -338,7 +338,7 @@ func (h *Handler) showThemeWithWarning(
 	}
 
 	text := h.themeScreenText(theme, count, h.svc.MaxSubmissions(), warning)
-	markup := keyboard.AddBackButton(keyboard.Empty(), keyboard.CallbackSubject(theme.SubjectCode))
+	markup := keyboard.AddBackButton(keyboard.Empty(), keyboard.CallbackSubject(theme.SubjectCode, 0))
 
 	// Лимит мог закончиться между прошлым экраном и этим апдейтом —
 	// например, пока юзер отправлял файлы. Тогда в режим ожидания

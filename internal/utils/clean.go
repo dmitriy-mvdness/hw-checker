@@ -12,6 +12,7 @@ import (
 var (
 	subjectCourseSuffixRe = regexp.MustCompile(`\s*[,\s]?\(?\d+-?й?\s*курс\)?\.?\s*$`)
 	themeNumberPrefixRe   = regexp.MustCompile(`^[Тт]ема\s+\d+(?:\.\d+)?\.?\s+`)
+	themeWordPrefixRe     = regexp.MustCompile(`^[Тт]ема\s+`)
 )
 
 // CleanSubjectName убирает «N-й курс» с конца названия предмета.
@@ -28,6 +29,17 @@ func CleanSubjectName(name string) string {
 // Используется на экране сдачи, где уже есть метка «Тема:».
 func CleanThemeName(name string) string {
 	cleaned := strings.TrimSpace(themeNumberPrefixRe.ReplaceAllString(name, ""))
+	if cleaned == "" {
+		return name
+	}
+	return capitalizeFirst(cleaned)
+}
+
+// CleanThemeNameKeepNumber убирает только слово «Тема», оставляя
+// номер для отображения там, где уже есть метка «Тема:».
+// Например: "Тема 7.1 Рефакторинг" -> "7.1 Рефакторинг"
+func CleanThemeNameKeepNumber(name string) string {
+	cleaned := strings.TrimSpace(themeWordPrefixRe.ReplaceAllString(name, ""))
 	if cleaned == "" {
 		return name
 	}
